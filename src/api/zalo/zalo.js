@@ -5,9 +5,22 @@ import { setupEventListeners } from '../../eventListeners.js';
 import { HttpsProxyAgent } from "https-proxy-agent";
 import nodefetch from "node-fetch";
 import fs from 'fs';
+import sharp from 'sharp';
 import { saveImage, removeImage } from '../../utils/helpers.js';
 
 export const zaloAccounts = [];
+
+// zca-js v2 removed the built-in sharp dependency and requires callers to
+// provide their own image metadata extractor when sending images by file path.
+async function imageMetadataGetter(filePath) {
+    const data = await fs.promises.readFile(filePath);
+    const metadata = await sharp(data).metadata();
+    return {
+        height: metadata.height,
+        width: metadata.width,
+        size: metadata.size || data.length,
+    };
+}
 
 // API để lấy danh sách tài khoản đã đăng nhập
 export async function getLoggedAccounts(req, res) {
@@ -668,7 +681,7 @@ export async function sendImageToUser(req, res) {
         const result = await account.api.sendMessage(
             {
                 msg: "",
-                attachments: [imagePath]
+                attachments: imagePath
             },
             threadId,
             ThreadType.User
@@ -879,10 +892,12 @@ export async function loginZaloAccount(customProxy, cred) {
                 agent: agent,
                 // @ts-ignore
                 polyfill: nodefetch,
+                imageMetadataGetter,
             });
         } else {
             console.log('Khởi tạo Zalo SDK không có proxy');
             zalo = new Zalo({
+                imageMetadataGetter,
             });
         }
 
