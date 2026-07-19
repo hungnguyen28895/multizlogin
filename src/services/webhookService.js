@@ -7,8 +7,12 @@ import os from 'os';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Đường dẫn đến file cấu hình webhook
-const webhookConfigPath = path.join(process.cwd(), 'src/config/webhookConfig.json');
+// Đường dẫn đến file cấu hình webhook.
+// Lưu trong thư mục data để được mount qua Docker volume (./zalo_data:/app/data),
+// nhờ đó cấu hình không bị mất khi stop/restart container.
+const webhookConfigPath = path.join(process.cwd(), 'data', 'webhook-config.json');
+// Đường dẫn cũ để tương thích ngược, tránh mất cấu hình đã có.
+const legacyWebhookConfigPath = path.join(process.cwd(), 'src', 'config', 'webhookConfig.json');
 
 // Cấu trúc dữ liệu mặc định
 const defaultConfig = {
@@ -77,6 +81,20 @@ export function loadWebhookConfig() {
                 saveWebhookConfig();
             }
         } else {
+            // Nếu file mới chưa có nhưng tồn tại cấu hình ở vị trí cũ, di chuyển sang data/
+            if (fs.existsSync(legacyWebhookConfigPath)) {
+                try {
+                    const legacyData = fs.readFileSync(legacyWebhookConfigPath, 'utf8');
+                    webhookConfig = JSON.parse(legacyData);
+                    if (!webhookConfig.default) webhookConfig.default = defaultConfig.default;
+                    if (!webhookConfig.accounts) webhookConfig.accounts = {};
+                    saveWebhookConfig();
+                    console.log(`Đã di chuyển cấu hình webhook từ ${legacyWebhookConfigPath} sang ${webhookConfigPath}`);
+                    return;
+                } catch (legacyError) {
+                    console.error(`Lỗi khi đọc cấu hình webhook cũ: ${legacyError.message}`);
+                }
+            }
             console.log(`File cấu hình webhook không tồn tại, tạo mới: ${webhookConfigPath}`);
             // Nếu file không tồn tại, tạo mới với cấu hình mặc định
             webhookConfig = defaultConfig;

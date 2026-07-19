@@ -184,8 +184,10 @@ router.post('/updateWebhook', (req, res) => {
   rootEnvContent = updateEnvVar(rootEnvContent, 'GROUP_EVENT_WEBHOOK_URL', groupEventWebhookUrl);
   rootEnvContent = updateEnvVar(rootEnvContent, 'REACTION_WEBHOOK_URL', reactionWebhookUrl);
 
-  // Also update Docker volume .env file
-  const dockerEnvPath = path.join(process.cwd(), 'zalo_data', '.env');
+  // Also update Docker volume .env file.
+  // Ghi vào thư mục data để trùng với Docker volume mount (./zalo_data:/app/data),
+  // đảm bảo file .env được giữ lại (persist) khi stop/restart container.
+  const dockerEnvPath = path.join(process.cwd(), 'data', '.env');
   let dockerEnvContent = '';
 
   // Read existing Docker .env content if it exists
