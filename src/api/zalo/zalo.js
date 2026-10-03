@@ -2,6 +2,7 @@
 import { Zalo, ThreadType } from 'zca-js';
 import { getPROXIES, getAvailableProxyIndex } from '../../services/proxyService.js';
 import { setupEventListeners } from '../../eventListeners.js';
+import { persistAccountCredentials, startSessionKeepAlive } from '../../services/zalo-session-keeper.js';
 import { HttpsProxyAgent } from "https-proxy-agent";
 import nodefetch from "node-fetch";
 import fs from 'fs';
@@ -978,32 +979,15 @@ export async function loginZaloAccount(customProxy, cred) {
                 console.log('Đã thêm tài khoản mới vào danh sách zaloAccounts');
             }
 
+            // Luôn ghi đè cookie mới nhất: giữ file cũ khiến relogin dùng zpw_sek đã hết hạn
             console.log('Đang lưu cookie...');
-            const context = await api.getContext();
-            const {imei, cookie, userAgent} = context;
-            const data = {
-                imei: imei,
-                cookie: cookie,
-                userAgent: userAgent,
+            try {
+                await persistAccountCredentials(api, ownId);
+                console.log(`Đã lưu cookie vào file cred_${ownId}.json`);
+            } catch (err) {
+                console.error('Lỗi khi ghi file cookie:', err);
             }
-            const cookiesDir = './data/cookies';
-            if (!fs.existsSync(cookiesDir)) {
-                fs.mkdirSync(cookiesDir, { recursive: true });
-                console.log('Đã tạo thư mục cookies');
-            }
-            fs.access(`${cookiesDir}/cred_${ownId}.json`, fs.constants.F_OK, (err) => {
-                if (err) {
-                    fs.writeFile(`${cookiesDir}/cred_${ownId}.json`, JSON.stringify(data, null, 4), (err) => {
-                        if (err) {
-                            console.error('Lỗi khi ghi file cookie:', err);
-                        } else {
-                            console.log(`Đã lưu cookie vào file cred_${ownId}.json`);
-                        }
-                    });
-                } else {
-                    console.log(`File cred_${ownId}.json đã tồn tại, không ghi đè`);
-                }
-            });
+            startSessionKeepAlive(api, ownId);
 
             console.log(`Đã đăng nhập vào tài khoản ${ownId} (${displayName}) với số điện thoại ${phoneNumber} qua proxy ${useCustomProxy ? customProxy : (proxyUsed?.url || 'không có proxy')}`);
         } catch (error) {
